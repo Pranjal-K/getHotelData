@@ -38,20 +38,14 @@ public class GetHotelDataForFilters extends HttpServlet{
 	private static Logger logger = Logger.getLogger("GetHotelDataForFilters");
 	private static int alreadyConfigured = 0;
 
-
-	/**
-     * @see HttpServlet#HttpServlet()
-     */
     public GetHotelDataForFilters() {
         super();
         // TODO Auto-generated constructor stub
     }
-
-	/**
-	 * @see HttpServlet#doGet(HttpServletRequest request, HttpServletResponse response)
-	 */
+    
+    
+    
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		// TODO Auto-generated method stub
 		
 		if(alreadyConfigured == 0)
 			BasicConfigurator.configure();
@@ -100,9 +94,16 @@ public class GetHotelDataForFilters extends HttpServlet{
 	            	BufferedReader in = new BufferedReader(new InputStreamReader(content));
 	    		    JSONParser parse = new JSONParser(); 
 	    		    apiKey = (JSONObject)parse.parse(in);
-	    		    response.setContentType("application/json");
-	    			response.getWriter().print(apiKey);
-	    			logger.info("Hotlier API called, data received, response sent");
+	    		    if(apiKey.get("error_code").toString().equals("OK")) {
+	    		    	response.setContentType("application/json");
+		    			response.getWriter().print(apiKey);
+		    			logger.info("Hotlier API called, data received, response sent");
+	    		    }
+	    		    else {
+	    		    	response.setContentType("application/json");
+		    			response.getWriter().print(apiKey.get("error_code"));
+		    			logger.info("Hotlier API called, no hotels available, response sent");
+	    		    }
 	                break; // fine, go on
 	            case HttpURLConnection.HTTP_BAD_REQUEST:
 	            	InputStream contentErrorBadRequest = connection.getErrorStream();
