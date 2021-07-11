@@ -22,6 +22,8 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.log4j.BasicConfigurator;
+import org.apache.log4j.Logger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -32,6 +34,10 @@ public class GetHotelDataForFilters extends HttpServlet{
 	
 	private static HttpURLConnection connection;
 	private static final long serialVersionUID = 1L;
+	
+	private static Logger logger = Logger.getLogger("GetHotelDataForFilters");
+	private static int alreadyConfigured = 0;
+
 
 	/**
      * @see HttpServlet#HttpServlet()
@@ -47,13 +53,14 @@ public class GetHotelDataForFilters extends HttpServlet{
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 		// TODO Auto-generated method stub
 		
-		String queryString = request.getQueryString();
+		if(alreadyConfigured == 0)
+			BasicConfigurator.configure();
+		alreadyConfigured = 1;
 		JSONObject apiKey = null;
 		
 		//JSON parser object to parse read file
         JSONParser jsonParser = new JSONParser();
         String path = request.getServletContext().getRealPath("/WEB-INF/keys.json");
-        System.out.println(path);
         
         try (FileReader reader = new FileReader(path))
         {
@@ -62,14 +69,15 @@ public class GetHotelDataForFilters extends HttpServlet{
             apiKey = (JSONObject) obj;
  
         } catch (FileNotFoundException e) {
-            e.printStackTrace();
+            logger.error("keys.json file does not exist");
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("IO Exception");
         } catch (ParseException e) {
-            e.printStackTrace();
+            logger.error("keys.json file not well formed");
         }
         
         if(apiKey == null) {
+            logger.error("Please add the keys.json file in WEB-INF folder");
         	response.setContentType("application/json");
 		    response.sendError(500, "Sorry something went wrong from our side, please refresh the page");
 		    return;
@@ -86,7 +94,6 @@ public class GetHotelDataForFilters extends HttpServlet{
 		    connection.setRequestProperty("Authorization", "Basic " + apiKey.get("apikey"));
 		    connection.setRequestProperty("Accept", "application/json");
 		    
-		    
 		    switch (connection.getResponseCode()) {
 	            case HttpURLConnection.HTTP_OK:
 	            	InputStream content = connection.getInputStream();
@@ -95,16 +102,26 @@ public class GetHotelDataForFilters extends HttpServlet{
 	    		    apiKey = (JSONObject)parse.parse(in);
 	    		    response.setContentType("application/json");
 	    			response.getWriter().print(apiKey);
+	    			logger.info("Hotlier API called, data received, response sent");
 	                break; // fine, go on
 	            case HttpURLConnection.HTTP_BAD_REQUEST:
-	            	System.out.println(" **some query parameter problem**.");
 	            	InputStream contentErrorBadRequest = connection.getErrorStream();
 	            	BufferedReader inErrorBadRequest = new BufferedReader(new InputStreamReader(contentErrorBadRequest));
 	    		    JSONParser parseErrorBadRequest = new JSONParser(); 
 	    		    apiKey = (JSONObject)parseErrorBadRequest.parse(inErrorBadRequest);
 	    		    response.setContentType("application/json");
 	    		    response.sendError(400, apiKey.get("error_msg").toString());
-	    			break;
+	    		    logger.error("Hotlier API call failed, query parameter not correct:  "+apiKey.get("error_msg").toString());
+	    		    break;
+	            case HttpURLConnection.HTTP_FORBIDDEN:
+	            	InputStream contentErrorHTTP_FORBIDDEN = connection.getErrorStream();
+	            	BufferedReader inErrorHTTP_FORBIDDEN = new BufferedReader(new InputStreamReader(contentErrorHTTP_FORBIDDEN));
+	    		    JSONParser parseErrorHTTP_FORBIDDEN = new JSONParser(); 
+	    		    apiKey = (JSONObject)parseErrorHTTP_FORBIDDEN.parse(inErrorHTTP_FORBIDDEN);
+	    		    response.setContentType("application/json");
+	    		    response.sendError(400, apiKey.get("error_msg").toString());
+	    		    logger.error("Hotlier API call failed, API key not correct:  "+apiKey.get("error_msg").toString());
+	    		    break;
 	            default:
 	            	System.out.println(" **unknown response code**.");
 	            	InputStream contentError = connection.getErrorStream();
@@ -113,6 +130,7 @@ public class GetHotelDataForFilters extends HttpServlet{
 	    		    apiKey = (JSONObject)parseError.parse(inError);
 	    		    response.setContentType("application/json");
 	    			response.getWriter().print(apiKey);
+	    			logger.error("Hotlier API called, some error happend" + apiKey);
 		    }
 
 		} catch (MalformedURLException e) {
