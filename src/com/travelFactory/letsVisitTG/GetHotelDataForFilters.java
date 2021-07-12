@@ -44,7 +44,7 @@ public class GetHotelDataForFilters extends HttpServlet{
 		
 		
 		JSONObject apiKey = null;
-		//JSON parser object to parse read file
+		//JSON parser object to parse
         JSONParser jsonParser = new JSONParser();
         
         //Loading the API key from keys file
@@ -54,6 +54,7 @@ public class GetHotelDataForFilters extends HttpServlet{
             //Read JSON file
             Object obj = jsonParser.parse(reader);
             apiKey = (JSONObject) obj;
+            reader.close();
  
         } catch (FileNotFoundException e) {
             logger.error("keys.json file does not exist");
@@ -72,7 +73,9 @@ public class GetHotelDataForFilters extends HttpServlet{
         }
         
         //Calling the WebHotlier API and sending the appropriate response to the client
-		try {
+        InputStream content = null;
+	    BufferedReader in = null;
+        try {
 		    URL url = new URL("https://rest.reserve-online.net/availability"+"?"+request.getQueryString());
 		    
 		    // get data
@@ -86,10 +89,9 @@ public class GetHotelDataForFilters extends HttpServlet{
 		    switch (connection.getResponseCode()) {
 	            
 		    case HttpURLConnection.HTTP_OK:
-	            	InputStream content = connection.getInputStream();
-	            	BufferedReader in = new BufferedReader(new InputStreamReader(content));
-	    		    JSONParser parse = new JSONParser(); 
-	    		    apiKey = (JSONObject)parse.parse(in);
+	            	content = connection.getInputStream();
+	            	in = new BufferedReader(new InputStreamReader(content));
+	    		    apiKey = (JSONObject)jsonParser.parse(in);
 
 	    		    //Check to handle no hotels available case
 	    		    if(apiKey.get("error_code").toString().equals("OK")) {
@@ -105,30 +107,30 @@ public class GetHotelDataForFilters extends HttpServlet{
 	                break; // fine, go on
 	            
 	            case HttpURLConnection.HTTP_BAD_REQUEST:
-	            	InputStream contentErrorBadRequest = connection.getErrorStream();
-	            	BufferedReader inErrorBadRequest = new BufferedReader(new InputStreamReader(contentErrorBadRequest));
-	    		    JSONParser parseErrorBadRequest = new JSONParser(); 
-	    		    apiKey = (JSONObject)parseErrorBadRequest.parse(inErrorBadRequest);
+	            	content = connection.getErrorStream();
+	            	in = new BufferedReader(new InputStreamReader(content));
+	    		    apiKey = (JSONObject)jsonParser.parse(in);
+	    		    
 	    		    response.setContentType("application/json");
-	    		    response.sendError(500, apiKey.get("error_msg").toString());
+	    		    response.sendError(400, apiKey.get("error_msg").toString());
 	    		    logger.error("Hotlier API call failed, query parameter not correct:  "+apiKey.get("error_msg").toString());
 	    		    break; // badly formatted or missing query parameters
 	            
 	            case HttpURLConnection.HTTP_FORBIDDEN:
-	            	InputStream contentErrorHTTP_FORBIDDEN = connection.getErrorStream();
-	            	BufferedReader inErrorHTTP_FORBIDDEN = new BufferedReader(new InputStreamReader(contentErrorHTTP_FORBIDDEN));
-	    		    JSONParser parseErrorHTTP_FORBIDDEN = new JSONParser(); 
-	    		    apiKey = (JSONObject)parseErrorHTTP_FORBIDDEN.parse(inErrorHTTP_FORBIDDEN);
+	            	content = connection.getErrorStream();
+	            	in = new BufferedReader(new InputStreamReader(content));
+	    		    apiKey = (JSONObject)jsonParser.parse(in);
+	    		    
 	    		    response.setContentType("application/json");
 	    		    response.sendError(500, apiKey.get("error_msg").toString());
 	    		    logger.error("Hotlier API call failed, API key not correct:  "+apiKey.get("error_msg").toString());
 	    		    break; // API key authentication failed
 	            
 	            default:
-	            	InputStream contentError = connection.getErrorStream();
-	            	BufferedReader inError = new BufferedReader(new InputStreamReader(contentError));
-	    		    JSONParser parseError = new JSONParser(); 
-	    		    apiKey = (JSONObject)parseError.parse(inError);
+	            	content = connection.getErrorStream();
+	            	in = new BufferedReader(new InputStreamReader(content));
+	    		    apiKey = (JSONObject)jsonParser.parse(in);
+	    		    
 	    		    response.setContentType("application/json");
 	    		    response.sendError(500, apiKey.get("error_msg").toString());
 	    			logger.error("Hotlier API called, some error happend" + apiKey);
@@ -142,6 +144,8 @@ public class GetHotelDataForFilters extends HttpServlet{
 		}
 		finally {
 			connection.disconnect();
+			content.close();
+			in.close();
 		}
 	}
 }
